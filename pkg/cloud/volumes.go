@@ -120,3 +120,14 @@ func (c *client) DetachVolume(ctx context.Context, volumeID string) error {
 	_, err := c.Volume.DetachVolume(p)
 	return err
 }
+
+func (c *client) ResizeVolume(ctx context.Context, volumeID string, sizeInGB int64) error {
+	p := c.Volume.NewResizeVolumeParams(volumeID)
+	p.SetSize(sizeInGB)
+	ctxzap.Extract(ctx).Sugar().Infow("CloudStack API call", "command", "ResizeVolume", "params", map[string]string{
+		"id":   volumeID,
+		"size": strconv.FormatInt(sizeInGB, 10),
+	})
+	_, err := c.Volume.ResizeVolume(p)
+	return err
+}

@@ -164,7 +164,7 @@ func checkVolumeSuitable(vol *cloud.Volume,
 	return true, ""
 }
 
-func determineSize(req *csi.CreateVolumeRequest) (int64, error) {
+func determineSize(req interface{ GetCapacityRange() *csi.CapacityRange }) (int64, error) {
 	var sizeInGB int64
 
 	if req.GetCapacityRange() != nil {
@@ -366,6 +366,48 @@ func (cs *controllerServer) ControllerGetCapabilities(ctx context.Context, req *
 					},
 				},
 			},
+			{
+				Type: &csi.ControllerServiceCapability_Rpc{
+					Rpc: &csi.ControllerServiceCapability_RPC{
+						Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+					},
+				},
+			},
 		},
+	}, nil
+}
+
+func (cs *controllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	}
+	vol, err := cs.connector.GetVolumeByID(ctx, volumeID)
+	if err == cloud.ErrNotFound {
+		return nil, status.Errorf(codes.NotFound, "Volume %v not found", volumeID)
+	} else if err != nil {
+		// Error with CloudStack
+		return nil, status.Errorf(codes.Internal, "Error %v", err)
+	}
+	sizeInGB, err := determineSize(req)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	// resize volume if required
+	if vol.Size < sizeInGB {
+		err = cs.connector.ResizeVolume(ctx, volumeID, sizeInGB)
+		if err != nil {
+			// Error with CloudStack
+			return nil, status.Errorf(codes.Internal, "Error %v", err)
+		}
+	}
+	// NodeExpansion is only needed for PersistentVolumes with Filesystem VolumeMode
+	nodeExpansion := true
+	if req.GetVolumeCapability().GetBlock() != nil {
+		nodeExpansion = false
+	}
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         sizeInGB,
+		NodeExpansionRequired: nodeExpansion,
 	}, nil
 }

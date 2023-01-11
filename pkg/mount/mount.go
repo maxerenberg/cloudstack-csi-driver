@@ -34,6 +34,7 @@ type Interface interface {
 	ExistsPath(filename string) (bool, error)
 	MakeDir(pathname string) error
 	MakeFile(pathname string) error
+	ResizeFs(devicePath string, deviceMountPath string) (bool, error)
 }
 
 type mounter struct {
@@ -169,4 +170,9 @@ func (*mounter) MakeFile(pathname string) error {
 		return err
 	}
 	return nil
+}
+
+func (m *mounter) ResizeFs(devicePath string, deviceMountPath string) (bool, error) {
+	resizer := mount.NewResizeFs(m.Interface)
+	return resizer.Resize(devicePath, deviceMountPath)
 }

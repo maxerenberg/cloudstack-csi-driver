@@ -51,3 +51,7 @@ func (*fakeMounter) MakeDir(pathname string) error {
 func (*fakeMounter) MakeFile(pathname string) error {
 	return nil
 }
+
+func (*fakeMounter) ResizeFs(devicePath string, deviceMountPath string) (bool, error) {
+	return true, nil
+}

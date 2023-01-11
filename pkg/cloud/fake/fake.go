@@ -101,3 +101,7 @@ func (f *fakeConnector) AttachVolume(ctx context.Context, volumeID, vmID string)
 }
 
 func (f *fakeConnector) DetachVolume(ctx context.Context, volumeID string) error { return nil }
+
+func (f *fakeConnector) ResizeVolume(ctx context.Context, volumeID string, sizeInGB int64) error {
+	return nil
+}

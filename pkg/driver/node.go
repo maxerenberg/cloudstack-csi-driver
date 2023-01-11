@@ -335,6 +335,41 @@ func (ns *nodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetC
 					},
 				},
 			},
+			{
+				Type: &csi.NodeServiceCapability_Rpc{
+					Rpc: &csi.NodeServiceCapability_RPC{
+						Type: csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+					},
+				},
+			},
 		},
 	}, nil
+}
+
+func (ns *nodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+	volumeID := req.GetVolumeId()
+	volumePath := req.GetStagingTargetPath()
+	if volumePath == "" {
+		// In Kubernetes < v1.19.0 the staging_target_path is stored in volume_path instead
+		// See https://github.com/kubernetes/kubernetes/pull/86968
+		volumePath = req.GetVolumePath()
+	}
+	if volumePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "Volume path not provided")
+	}
+	devicePath, err := ns.mounter.GetDevicePath(ctx, volumeID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Cannot find device path for volume %s: %s", volumeID, err.Error())
+	}
+	if req.GetVolumeCapability().GetBlock() == nil {
+		ctxzap.Extract(ctx).Sugar().Infow("Resizing filesystem",
+			"devicePath", devicePath,
+			"volumePath", volumePath,
+		)
+		_, err = ns.mounter.ResizeFs(devicePath, volumePath)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Resizing %s failed with error %v", devicePath, err)
+		}
+	}
+	return &csi.NodeExpandVolumeResponse{}, nil
 }
